@@ -1,4 +1,10 @@
 # CSGO-P2C-Dumper - Dirty Implementation
+<p align="center">
+Want to analyze your favorite CS:GO pay(ste) to cheat?! Look no further!
+
+
+CSGO-P2C-Dumper is a process memory dumper aimed to target CS:GO internal cheats, while offering additional reversing aid.
+</p>
 
 # Features:
 
