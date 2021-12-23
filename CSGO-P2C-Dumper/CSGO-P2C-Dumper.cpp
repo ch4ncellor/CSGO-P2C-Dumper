@@ -20,7 +20,7 @@ int main()
     std::uint32_t m_eDumpTypes{};
     std::cin >> m_eDumpTypes;
 
-    if (m_eDumpTypes < 0 || m_eDumpTypes > 4)
+    if (m_eDumpTypes <= 0 || m_eDumpTypes > 4)
     {
         LOG("[-] Decision index out of range...\n");
         PAUSE_SYSTEM_CMD(true);
@@ -28,24 +28,22 @@ int main()
 
     std::filesystem::create_directory("Dumps");
 
-    if (!g_Utilities.SetupDesiredProcess(("csgo.exe")))
-    {
-        LOG("[!] Awaiting for desired process to open...\n");
-        PAUSE_SYSTEM_CMD(false);
+     chdr::Process_t m_Process(
+        L"csgo.exe", 
+         chdr::PEHeaderData_t::PEHEADER_PARSING_TYPE::TYPE_NONE // Don't parse PE header data out of the process.
+     );
 
-        if (!g_Utilities.SetupDesiredProcess(("csgo.exe")))
-        {
-            LOG("[-] Couldn't find desired process...\n");
-            PAUSE_SYSTEM_CMD(true);
-        }
-    }
+     if (!m_Process.IsValid())
+     {
+         LOG("[-] Couldn't find desired process...\n");
+         PAUSE_SYSTEM_CMD(true);
+     }
 
     if (m_eDumpTypes == eDumpType::DUMPTYPE_SIGNATUREBASED)
     {
-        g_Dumper.DumpCheatModule_ByPopularSignatures();
+        g_Dumper.DumpCheatModule_ByPopularSignatures(m_Process);
 
         // Cleanup, and finish off.
-        CloseHandle(g_Utilities.TargetProcess);
         LOG("[+] CSGO-P2C-Dumper finished...\n");
 
         PAUSE_SYSTEM_CMD(true);
@@ -60,7 +58,7 @@ int main()
         m_eDumpTypes == eDumpType::DUMPTYPE_ALLFEATURES)
     {
         LOG("[+] Iterating and caching all allocated memory...\n");
-        g_Dumper.ScanInitialAllocations();
+        g_Dumper.ScanInitialAllocations(m_Process);
     }
 
     if (m_eDumpTypes == eDumpType::DUMPTYPE_HOOKBASED ||
@@ -70,15 +68,18 @@ int main()
 
         for (auto [m_szModuleName, m_szFunctionName, m_szSignature, m_szMask] : g_Utilities.m_SignatureList)
         {
-            C_Utilities::Module_t m_DummyModule = { 0 };
-            if (!g_Utilities.SetupDesiredModule(m_szModuleName, &m_DummyModule))
+            struct { std::uint32_t m_nSize = 0u; std::uint32_t m_nBase = 0u; } TemporaryModuleData;
+            for (const auto& ModuleData : m_Process.EnumerateModules(true))
             {
-                LOG("[-] Couldn't find desired module [%s]...\n", m_szModuleName);
-                continue;
+                if (std::strcmp(m_szModuleName, ModuleData.m_szName.c_str()) != 0)
+                    continue;
+
+                TemporaryModuleData = { ModuleData.m_nSize, ModuleData.m_BaseAddress };
+                break;
             }
 
-            const DWORD m_AddressOfFunction = g_Utilities.FindSignature(
-                m_DummyModule.dwBase, m_DummyModule.dwSize,
+            const DWORD m_AddressOfFunction = g_Utilities.FindSignature( m_Process,
+                TemporaryModuleData.m_nBase, TemporaryModuleData.m_nSize,
                 m_szSignature, m_szMask
             );
 
@@ -89,25 +90,21 @@ int main()
             }
 
             ZyanU8 pFirst15BytesOfFunction[BYTES_TO_READ_FROM_FUNCTION];
-
-            // Read the first 15 bytes of this function..
-            BOOL m_bRPMResult = ReadProcessMemory(
-                g_Utilities.TargetProcess,
-                (LPCVOID)m_AddressOfFunction,
-                &pFirst15BytesOfFunction,
-                BYTES_TO_READ_FROM_FUNCTION, NULL
+            std::size_t m_nReadBytes = m_Process.Read(
+                (uintptr_t)m_AddressOfFunction,
+                pFirst15BytesOfFunction,
+                BYTES_TO_READ_FROM_FUNCTION
             );
 
-            if (!m_bRPMResult)
+            if (!m_nReadBytes)
             {
                 LOG("[-] ReadProcessMemory failed with errorcode #%i...\n", GetLastError());
                 continue;
             }
 
-            for (int i = 0; i < BYTES_TO_READ_FROM_FUNCTION; ++i) {
+            for (int i = 0; i < BYTES_TO_READ_FROM_FUNCTION; ++i) 
                 SavedOriginalBuffers[nIteration][i] = pFirst15BytesOfFunction[i];
-            }
-
+       
             g_Dumper.m_InitialSavedFunctions.push_back({ m_szFunctionName, m_AddressOfFunction, pFirst15BytesOfFunction });
             ++nIteration;
         }    
@@ -117,10 +114,9 @@ int main()
 
     LOG("[+] Please inject your desired P2C, and press F5 to continue! :)\n\n");
 
-    while (!GetAsyncKeyState(VK_F5))
-    {
+    while (!GetAsyncKeyState(VK_F5)) 
+        // Hold thread until user's okay.
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
     
     if (m_eDumpTypes == eDumpType::DUMPTYPE_HOOKBASED ||
         m_eDumpTypes == eDumpType::DUMPTYPE_ALLFEATURES)
@@ -134,31 +130,23 @@ int main()
         for (auto [m_szFunctionName, m_AddressOfFunction, m_ByteArrayOfFunction] : g_Dumper.m_InitialSavedFunctions)
         {
 
-            ZyanU8 pFirst10BytesOfFunction[BYTES_TO_READ_FROM_FUNCTION];
-
-            // Read the first 15 bytes of this function..
-            BOOL m_bRPMResult = ReadProcessMemory(
-                g_Utilities.TargetProcess,
-                (LPCVOID)m_AddressOfFunction,
-                &pFirst10BytesOfFunction,
-                BYTES_TO_READ_FROM_FUNCTION, NULL
+            ZyanU8 pFirstBytesOfFunction[BYTES_TO_READ_FROM_FUNCTION];
+            std::size_t m_nReadBytes = m_Process.Read(
+                (uintptr_t)m_AddressOfFunction,
+                pFirstBytesOfFunction,
+                BYTES_TO_READ_FROM_FUNCTION
             );
 
-            if (!m_bRPMResult)
+            if (!m_nReadBytes)
             {
                 LOG("[-] ReadProcessMemory failed with errorcode #%i...\n", GetLastError());
                 continue;
             }
 
             bool bFoundMismatch = false;
-            for (int i = 0; i < BYTES_TO_READ_FROM_FUNCTION; i++) {
-                if (pFirst10BytesOfFunction[i] != SavedOriginalBuffers[nIteration][i])
-                {
-                    bFoundMismatch = true;
-                    break;
-                }
-            }
-
+            for (int i = 0; i < BYTES_TO_READ_FROM_FUNCTION && !bFoundMismatch; i++) 
+                bFoundMismatch = pFirstBytesOfFunction[i] != SavedOriginalBuffers[nIteration][i];
+         
             if (bFoundMismatch)
             {
                 LOG("\n[!!] Found mismatch at function %s at address 0x%X.\n[!!] Original buffer: ", m_szFunctionName, m_AddressOfFunction);
@@ -169,7 +157,7 @@ int main()
 
                 LOG("[!!] Modified Buffer: ");
                 for (int i = 0; i < BYTES_TO_READ_FROM_FUNCTION; ++i) {
-                    LOG("%02X ", pFirst10BytesOfFunction[i]);
+                    LOG("%02X ", pFirstBytesOfFunction[i]);
                 }  LOG("\n\n");
 
                 // Initialize decoder context
@@ -188,7 +176,7 @@ int main()
                 ZyanUSize offset = 0;
                 const ZyanUSize length = BYTES_TO_READ_FROM_FUNCTION;
                 ZydisDecodedInstruction instruction;
-                while (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, pFirst10BytesOfFunction + offset, length - offset, &instruction)))
+                while (ZYAN_SUCCESS(ZydisDecoderDecodeBuffer(&decoder, pFirstBytesOfFunction + offset, length - offset, &instruction)))
                 {
                     // Print current instruction pointer.
                     LOG("%010" "llx" "  ", runtime_address);
@@ -217,11 +205,8 @@ int main()
             }
 
             if (m_nFoundDirectJump != 0x0)
-            {
+                // Found direct JMP in modified buffer, cache for later.
                 g_Dumper.m_FoundDirectJmpList.push_back({ m_szFunctionName, m_nFoundDirectJump });
-            }
-
-            g_Dumper.m_EndingSavedFunctions.push_back({ m_szFunctionName, m_AddressOfFunction, pFirst10BytesOfFunction });
 
             m_nFoundDirectJump = 0;
             ++nIteration;
@@ -233,24 +218,23 @@ int main()
         } 
         else
         {
-            g_Dumper.DumpCheatModule_ByFoundDirectJmp();
+            g_Dumper.DumpCheatModule_ByFoundDirectJmp(m_Process);
         }
     }
 
     if (m_eDumpTypes == eDumpType::DUMPTYPE_ALLOCATIONBASED ||
         m_eDumpTypes == eDumpType::DUMPTYPE_ALLFEATURES)
     {
-        g_Dumper.DumpCheatModule_ByNewAllocations();
+        g_Dumper.DumpCheatModule_ByNewAllocations(m_Process);
     }
 
     if (m_eDumpTypes == eDumpType::DUMPTYPE_ALLFEATURES)
     {
-        g_Dumper.DumpCheatModule_ByPopularSignatures();
+        g_Dumper.DumpCheatModule_ByPopularSignatures(m_Process);
     }
 
     // Cleanup, and finish off.
     {
-        CloseHandle(g_Utilities.TargetProcess);
         LOG("[+] CSGO-P2C-Dumper finished...\n");
     }
 

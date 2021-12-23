@@ -36,6 +36,7 @@ CSGO-P2C-Dumper is a process memory dumper aimed to target CS:GO internal cheats
 # Credits:
 
 - [zydis](https://github.com/zyantific/zydis) (Disassembler)
+- [chdr](https://github.com/ch4ncellor/chdr) (Memory Library)
 
 
 

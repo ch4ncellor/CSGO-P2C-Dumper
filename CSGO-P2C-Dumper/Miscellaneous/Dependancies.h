@@ -20,6 +20,7 @@
 
 #include "../Dumper/Dumper.h"
 #include "../Utilities/Utilities.h"
+#include "../chdr/chdr.h"
 
 #include <Zydis/Zydis.h>
 #include <Zycore/Zycore.h>

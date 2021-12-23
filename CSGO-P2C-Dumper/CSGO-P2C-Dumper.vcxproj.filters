@@ -16,10 +16,14 @@
     <ClCompile Include="Dumper\Dumper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="chdr\chdr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Utilities\Utilities.h" />
     <ClInclude Include="Dumper\Dumper.h" />
     <ClInclude Include="Miscellaneous\Dependancies.h" />
+    <ClInclude Include="chdr\chdr.h" />
   </ItemGroup>
 </Project>

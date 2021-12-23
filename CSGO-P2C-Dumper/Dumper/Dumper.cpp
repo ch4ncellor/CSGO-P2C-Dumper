@@ -1,6 +1,6 @@
 #include "Dumper.h"
 
-bool C_Dumper::DumpCheatModule_ByFoundDirectJmp()
+bool C_Dumper::DumpCheatModule_ByFoundDirectJmp(chdr::Process_t& m_Process)
 {
     LOG("[!] Attempting to dump cheat module by scanning direct JMP's from placed hooks...\n\n");
 
@@ -11,16 +11,12 @@ bool C_Dumper::DumpCheatModule_ByFoundDirectJmp()
     }
 
     int m_nCorrectIteration = 0;
-    for (int i = 1; i < this->m_FoundDirectJmpList.size(); i++)
-    {
+    for (std::size_t i = 1u; i < this->m_FoundDirectJmpList.size(); ++i) 
         if (this->m_FoundDirectJmpList[m_nCorrectIteration].second > this->m_FoundDirectJmpList[i].second)
-        {
             m_nCorrectIteration = i;
-        }
-    }
-
+      
     // Calculate lowest offset of direct JMP's, so as to not uselessly throw away valuable codenz.
-    uint32_t nAddressToInitiallyDumpFrom = this->m_FoundDirectJmpList[m_nCorrectIteration].second;
+    const uint32_t nAddressToInitiallyDumpFrom = this->m_FoundDirectJmpList[m_nCorrectIteration].second;
     if (!nAddressToInitiallyDumpFrom)
     {
         LOG("[-] Something went wrong while retrieving the direct JMP's gathered...\n")
@@ -29,61 +25,54 @@ bool C_Dumper::DumpCheatModule_ByFoundDirectJmp()
 
     // 3MB forwards, 2MB backwards..
     // TODO; Dynamically get the size somehow, of this hidden module we're trying to dump.. ?
-    const DWORD m_GuessedStartOfModule = nAddressToInitiallyDumpFrom - 250000;
-    const DWORD m_GuessedEndOfModule = nAddressToInitiallyDumpFrom + 4000000;
+     DWORD m_GuessedStartOfModule = nAddressToInitiallyDumpFrom - 250000;
 
-    for (auto& DirectJumpList : this->m_FoundDirectJmpList)
-    {
-        const uint32_t m_OffsetFromBase = DirectJumpList.second - m_GuessedStartOfModule;
-        LOG("[++] Function %s is at ImageBase[+0x%X]\n", DirectJumpList.first, m_OffsetFromBase);
-    }
+    const std::size_t nToBeRead = 7000000u;
+    const auto BufferOfDumpedData = std::make_unique<uint8_t[]>(nToBeRead);
 
-    SIZE_T NumberOfBytesRead = 0;
-    BOOL m_bRPMStatusResult = ReadProcessMemory(
-        g_Utilities.TargetProcess,
-        (LPCVOID)m_GuessedStartOfModule,
-        &m_ProcessBuffer,
-        8000000,
-       &NumberOfBytesRead
+    SIZE_T NumberOfBytesRead = m_Process.Read(
+        (uintptr_t)m_GuessedStartOfModule,
+        BufferOfDumpedData.get(),
+        nToBeRead
     );
 
-    if (!NumberOfBytesRead || (!m_bRPMStatusResult && !m_ProcessBuffer))
+    if (!NumberOfBytesRead)
     {
         for (int i = 3; i > 0; --i)
         {
-            m_bRPMStatusResult = ReadProcessMemory(
-                g_Utilities.TargetProcess,
-                (LPCVOID)(nAddressToInitiallyDumpFrom - (i * 100000)),
-                &m_ProcessBuffer,
-                8000000,
-                &NumberOfBytesRead
+            m_GuessedStartOfModule = nAddressToInitiallyDumpFrom - (i * 100000);
+            NumberOfBytesRead = m_Process.Read(
+                (uintptr_t)m_GuessedStartOfModule,
+                BufferOfDumpedData.get(),
+                nToBeRead
             );
 
-            if (NumberOfBytesRead && m_bRPMStatusResult)
+            if (NumberOfBytesRead)
                 break;
         }
 
-        if (!NumberOfBytesRead || (!m_bRPMStatusResult && !m_ProcessBuffer))
+        if (!NumberOfBytesRead)
         {
-            LOG("\n[-] Failed to ReadProcessMemory desired address(es) [%i | %i]...\n", NumberOfBytesRead, m_bRPMStatusResult);
+            LOG("\n[-] Failed to ReadProcessMemory desired address(es) [%i]...\n", NumberOfBytesRead);
             return false;
         }
     }
 
     LOG("\n[+] Successfully read and copied over the wish bytes from desired process "
         "within the address space: 0x%X -> 0x%X. Original address was 0x%X.\n\n",
-        nAddressToInitiallyDumpFrom, m_GuessedEndOfModule, nAddressToInitiallyDumpFrom);
+        nAddressToInitiallyDumpFrom, 
+        nAddressToInitiallyDumpFrom + NumberOfBytesRead,
+        nAddressToInitiallyDumpFrom);
 
     const HANDLE hFile = CreateFileW((L"Dumps\\DirectJmp-Dump.bin"), 0xC0000000, 0, 0, 2, 0x80, 0);
 
     try
     {
-        if (hFile && hFile != INVALID_HANDLE_VALUE)
+        if (hFile && 
+            hFile != INVALID_HANDLE_VALUE &&
+            !WriteFile(hFile, (LPCVOID)BufferOfDumpedData.get(), NumberOfBytesRead, 0, 0))
         {
-            if (!WriteFile(hFile, (LPCVOID)m_ProcessBuffer, 8000000, 0, 0))
-            {
-                LOG("[-] WriteFile failed, GetLastError() returned %i.\n", GetLastError());
-            }
+            LOG("[-] WriteFile failed, GetLastError() returned %i.\n", GetLastError());
         }
     }
 
@@ -92,15 +81,20 @@ bool C_Dumper::DumpCheatModule_ByFoundDirectJmp()
 
     }
 
-    if (hFile && hFile != INVALID_HANDLE_VALUE)
-    {
+    if (hFile && 
+        hFile != INVALID_HANDLE_VALUE)
         CloseHandle(hFile);
+
+    for (const auto& DirectJumpList : this->m_FoundDirectJmpList)
+    {
+        const uint32_t m_OffsetFromBase = DirectJumpList.second - m_GuessedStartOfModule;
+        LOG("[++] Function %s is at ImageBase[+0x%X]\n", DirectJumpList.first, m_OffsetFromBase);
     }
 
     return true;
 }
 
-int C_Dumper::ScanInitialAllocations()
+int C_Dumper::ScanInitialAllocations(chdr::Process_t& m_Process)
 {
     char* CurrentFoundAddress = { 0 };
     _SYSTEM_INFO SystemInfo = { 0 };
@@ -109,7 +103,7 @@ int C_Dumper::ScanInitialAllocations()
     MEMORY_BASIC_INFORMATION mbi;
     while (CurrentFoundAddress < SystemInfo.lpMaximumApplicationAddress)
     {
-        VirtualQueryEx(g_Utilities.TargetProcess, CurrentFoundAddress, &mbi, (SIZE_T)0x1C);
+        m_Process.Query(CurrentFoundAddress, &mbi);
 
         this->m_PreInjectionAllocatedMemory.push_back({ (char*)mbi.BaseAddress, mbi.RegionSize });
         CurrentFoundAddress = (char*)mbi.BaseAddress + mbi.RegionSize;
@@ -118,14 +112,23 @@ int C_Dumper::ScanInitialAllocations()
     return m_nPreInjectionPageCount;
 }
 
-void C_Dumper::DumpCheatModule_ByNewAllocations()
+void C_Dumper::DumpCheatModule_ByNewAllocations(chdr::Process_t& m_Process)
 {
     LOG("[!] Attempting to dump cheat module by scanning new allocations...\n\n");
 
-    C_Utilities::Module_t m_DummyModule = { 0 };
-    if (!g_Utilities.SetupDesiredModule(("csgo.exe"), &m_DummyModule))
+    struct { std::uint32_t m_nSize = 0u; std::uint32_t m_nBase = 0u; } TemporaryModuleData;
+    for (const auto& ModuleData : m_Process.EnumerateModules(true))
     {
-        LOG("[-] Couldn't find main module of desired process...\n");
+        if (std::strcmp(ModuleData.m_szName.c_str(), "csgo.exe") != 0)
+            continue;
+
+        TemporaryModuleData = { ModuleData.m_nSize, ModuleData.m_BaseAddress };
+        break;
+    }
+
+    if (!TemporaryModuleData.m_nBase || !TemporaryModuleData.m_nSize)
+    {
+        LOG("Couldn't find main module of desired process. This should never happen!");
         return;
     }
 
@@ -138,59 +141,56 @@ void C_Dumper::DumpCheatModule_ByNewAllocations()
     MEMORY_BASIC_INFORMATION mbi;
     while (CurrentFoundAddress < SystemInfo.lpMaximumApplicationAddress)
     {
-        VirtualQueryEx(g_Utilities.TargetProcess, CurrentFoundAddress, &mbi, (SIZE_T)0x1C);
+        m_Process.Query(CurrentFoundAddress, &mbi);
 
         this->m_PostInjectionAllocatedMemory.push_back({ (char*)mbi.BaseAddress, mbi.RegionSize });
         CurrentFoundAddress = (char*)mbi.BaseAddress + mbi.RegionSize;
 
-        auto shit = std::find_if(m_PreInjectionAllocatedMemory.begin(), m_PreInjectionAllocatedMemory.end(), [&](const AllocatedMemoryInformation_t& o) {
+        auto FoundMemory = std::find_if(m_PreInjectionAllocatedMemory.begin(), m_PreInjectionAllocatedMemory.end(), [&](const AllocatedMemoryInformation_t& o) {
             return o.BaseAddress == mbi.BaseAddress;
             });
 
-        if (shit == m_PreInjectionAllocatedMemory.end())
+        if (FoundMemory != m_PreInjectionAllocatedMemory.end())
         {
-            LOG("[+] Found new allocation at 0x%X with a size of 0x%X\n", (DWORD)mbi.BaseAddress, mbi.RegionSize);
+            ++m_nPostInjectionPageCount;
+            continue;
+        }
 
-            SIZE_T NumberOfBytesRead;
+        LOG("[+] Found new allocation at 0x%X with a size of 0x%X\n", (DWORD)mbi.BaseAddress, mbi.RegionSize);
 
-            BOOL m_bRPMStatusResult = ReadProcessMemory(
-                g_Utilities.TargetProcess,
-                (LPCVOID)mbi.BaseAddress,
-                &ByteBuf,
-                mbi.RegionSize,
-                &NumberOfBytesRead
-            );
+        const auto BufferOfDumpedData = std::make_unique<uint8_t[]>(mbi.RegionSize);
+        SIZE_T NumberOfBytesRead = m_Process.Read(
+            (uintptr_t)mbi.BaseAddress,
+            BufferOfDumpedData.get(),
+            mbi.RegionSize
+        );
 
-            if (NumberOfBytesRead && m_bRPMStatusResult)
+        if (!NumberOfBytesRead)
+            continue;
+
+        if (hFile && hFile != INVALID_HANDLE_VALUE)
+        {
+            try
             {
-                if (hFile && hFile != INVALID_HANDLE_VALUE)
-                {
-                    try
-                    {
-                        WriteFile(hFile, (LPCVOID)ByteBuf, NumberOfBytesRead, 0, 0);
-                    }
-
-                    catch (...)
-                    {
-
-                    }
-
-                }
-                else
-                {
-                    LOG("[-] CreateFileW failed, GetLastError() returned %i.\n", GetLastError());
-                }
+                WriteFile(hFile, (LPCVOID)BufferOfDumpedData.get(), NumberOfBytesRead, 0, 0);
             }
 
+            catch (...)
+            {
+
+            }
+
+        }
+        else
+        {
+            LOG("[-] CreateFileW failed, GetLastError() returned %i.\n", GetLastError());
         }
 
         ++m_nPostInjectionPageCount;
     }
 
     if (hFile && hFile != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(hFile);
-    }       
+        CloseHandle(hFile);        
 }
 
 void C_Dumper::PopulateCheatSignatureTable()
@@ -239,16 +239,25 @@ void C_Dumper::PopulateCheatSignatureTable()
     }
 }
 
-bool C_Dumper::DumpCheatModule_ByPopularSignatures()
+bool C_Dumper::DumpCheatModule_ByPopularSignatures(chdr::Process_t& m_Process)
 {
-    LOG("[!] Attempting to dump cheat module by scanning %i suspected pay cheat signatures...\n\n", m_PayCheatCommonSignatureList.size());
-   
     this->PopulateCheatSignatureTable();
 
-    C_Utilities::Module_t m_DummyModule = { 0 };
-    if (!g_Utilities.SetupDesiredModule(("csgo.exe"), &m_DummyModule))
+    LOG("[!] Attempting to dump cheat module by scanning %i suspected pay cheat signatures...\n\n", m_PayCheatCommonSignatureList.size());
+
+    struct { std::uint32_t m_nSize = 0u; std::uint32_t m_nBase = 0u; } TemporaryModuleData;
+    for (const auto& ModuleData : m_Process.EnumerateModules(true))
     {
-        LOG("[-] Couldn't get desired main process module...\n");
+        if (std::strcmp(ModuleData.m_szName.c_str(), "csgo.exe") != 0)
+            continue;
+
+        TemporaryModuleData = { ModuleData.m_nSize, ModuleData.m_BaseAddress };
+        break;
+    }
+
+    if (!TemporaryModuleData.m_nBase || !TemporaryModuleData.m_nSize)
+    {
+        LOG("Couldn't find main module of desired process. This should never happen!");
         return false;
     }
 
@@ -257,9 +266,9 @@ bool C_Dumper::DumpCheatModule_ByPopularSignatures()
 
     for (auto [m_szFunctionName, m_szSignature, m_szMask] : this->m_PayCheatCommonSignatureList)
     {
-        m_FoundSignature = g_Utilities.FindSignature(
-            m_DummyModule.dwBase,
-            m_DummyModule.dwSize,
+        m_FoundSignature = g_Utilities.FindSignature(m_Process,
+            TemporaryModuleData.m_nBase,
+            TemporaryModuleData.m_nSize,
             m_szSignature,
             m_szMask
         );
@@ -283,16 +292,16 @@ bool C_Dumper::DumpCheatModule_ByPopularSignatures()
     const DWORD m_GuessedStartOfModule = m_FoundSignature - 200000;
     const DWORD m_GuessedEndOfModule   = m_FoundSignature + 3000000;
 
-    SIZE_T NumberOfBytesRead = 0;
-    BOOL m_bRPMStatusResult = ReadProcessMemory(
-        g_Utilities.TargetProcess,
-        (LPCVOID)m_GuessedStartOfModule,
-        &m_ProcessBuffer,
-        6000000,
-        &NumberOfBytesRead
+    const std::size_t nToBeRead = 6000000u;
+    const auto BufferOfDumpedData = std::make_unique<uint8_t[]>(nToBeRead);
+
+    SIZE_T NumberOfBytesRead  = m_Process.Read(
+        (uintptr_t)m_GuessedStartOfModule,
+        BufferOfDumpedData.get(),
+        nToBeRead
     );
 
-    if (!m_bRPMStatusResult && !m_ProcessBuffer)
+    if (!NumberOfBytesRead)
     {
         LOG("[-] Failed to ReadProcessMemory desired address(es)...\n");
         return false;
@@ -308,7 +317,7 @@ bool C_Dumper::DumpCheatModule_ByPopularSignatures()
     {
         try
         {
-            WriteFile(hFile, (LPCVOID)ByteBuf, NumberOfBytesRead, 0, 0);
+            WriteFile(hFile, (LPCVOID)BufferOfDumpedData.get(), NumberOfBytesRead, 0, 0);
         }
 
         catch (...)

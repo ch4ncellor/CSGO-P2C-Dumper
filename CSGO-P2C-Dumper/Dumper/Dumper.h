@@ -1,20 +1,18 @@
 #pragma once
 
 #include "../CSGO-P2C-Dumper/Miscellaneous/Dependancies.h"
-
+#include "../chdr/chdr.h"
 class C_Dumper
 {
-	BYTE ByteBuf[35000000/*Up to 35MB limit*/];
-	BYTE m_ProcessBuffer[8000000/*Up to 8MB limit*/];
 	void PopulateCheatSignatureTable();
 
 	int m_nPreInjectionPageCount = 0;
 	int m_nPostInjectionPageCount = 0;
 public:
-	int ScanInitialAllocations();
-	void DumpCheatModule_ByNewAllocations();
-	bool DumpCheatModule_ByFoundDirectJmp();
-	bool DumpCheatModule_ByPopularSignatures();
+	int ScanInitialAllocations(chdr::Process_t& m_Process);
+	void DumpCheatModule_ByNewAllocations(chdr::Process_t &m_Process);
+	bool DumpCheatModule_ByFoundDirectJmp(chdr::Process_t& m_Process);
+	bool DumpCheatModule_ByPopularSignatures(chdr::Process_t& m_Process);
 
 	struct AllocatedMemoryInformation_t
 	{
@@ -35,12 +33,6 @@ public:
 		const char*/*FunctionName*/,
 		DWORD/*AddressOfFunction*/,
 		BYTE*/*ByteArrayOfFunction*/>> m_InitialSavedFunctions;
-
-	std::vector<
-		std::tuple<
-		const char*/*FunctionName*/,
-		DWORD/*AddressOfFunction*/,
-		BYTE*/*ByteArrayOfFunction*/>> m_EndingSavedFunctions;
 
 	std::vector<
 		std::tuple<

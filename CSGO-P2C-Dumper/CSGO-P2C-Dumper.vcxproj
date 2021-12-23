@@ -72,23 +72,23 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
-    <LibraryPath>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -97,7 +97,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -114,7 +114,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
       <WholeProgramOptimization>false</WholeProgramOptimization>
     </ClCompile>
@@ -132,7 +132,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <OmitFramePointers>false</OmitFramePointers>
     </ClCompile>
     <Link>
@@ -149,7 +149,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\polak\source\repos\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\polak\Desktop\CSGO-P2C-Dumper\Zydis;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
       <OmitFramePointers>false</OmitFramePointers>
       <WholeProgramOptimization>false</WholeProgramOptimization>
@@ -163,11 +163,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="chdr\chdr.cpp" />
     <ClCompile Include="CSGO-P2C-Dumper.cpp" />
     <ClCompile Include="Dumper\Dumper.cpp" />
     <ClCompile Include="Utilities\Utilities.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="chdr\chdr.h" />
     <ClInclude Include="Dumper\Dumper.h" />
     <ClInclude Include="Miscellaneous\Dependancies.h" />
     <ClInclude Include="Utilities\Utilities.h" />
